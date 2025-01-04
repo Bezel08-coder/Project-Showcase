@@ -1,0 +1,610 @@
+---
+title: "Capital Bikes Analysis"
+subtitle: "Exploring Patterns and Insights"
+author: "Genius Mpala, Bezel Ndhlovu, Johannes Machinya"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Introduction
+This report provides an analysis of the Capital Bikes dataset, focusing on data preparation, cleaning, and exploratory data analysis (EDA). The objective is to gain insights into bike rental demand patterns, and the impact of weather on bike rentals.
+
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(naniar) 
+library(scales) 
+library(dplyr)
+library(leaflet)
+library(ggplot2)
+library(scales)
+library(lubridate)
+library(viridis)
+library(packcircles)
+
+
+```
+
+```{r, echo=FALSE}
+
+load("C:\\Users\\machi\\Downloads\\archive (6)\\capital_bikes_data.RData")
+
+```
+
+Checking for Missing Values
+
+We start by checking for missing values across each dataset to identify areas requiring data cleaning.
+
+
+```{r}
+# Counting missing values in each dataset
+missing_values_daily_rent <- sapply(daily_rent_detail, function(x) sum(is.na(x)))
+missing_values_weather <- sapply(weather, function(x) sum(is.na(x)))
+missing_values_usage_frequency <- sapply(usage_frequency, function(x) sum(is.na(x)))
+missing_values_station_list <- sapply(station_list, function(x) sum(is.na(x)))
+
+# Displaying missing values count
+missing_values_daily_rent
+missing_values_weather
+missing_values_usage_frequency
+missing_values_station_list
+```
+Visualize Missing Data
+
+Using naniar, we can visualize the distribution of missing values for further clarity.
+
+```{r, echo=FALSE}
+# Missing data visualization
+gg_miss_var(daily_rent_detail) +
+  labs(title = "Missing Values by Variable in daily_rent_detail Dataset")
+
+gg_miss_var(weather) +
+  labs(title = "Missing Values by Variable in Weather Dataset")
+
+```
+
+```{r}
+library(dplyr)
+
+# Dropping rows with any missing values in `daily_rent_detail`
+daily_rent_detail <- daily_rent_detail %>% drop_na()
+
+# Dropping rows with any missing values in `weather`
+weather <- weather %>% drop_na()
+
+# Droping rows with any missing values in `usage_frequency`
+usage_frequency <- usage_frequency %>% drop_na()
+
+# Drop rows with any missing values in `station_list`
+station_list <- station_list %>% drop_na()
+
+# Check the dimensions of the datasets to see the change in size
+dim(daily_rent_detail)
+dim(weather)
+dim(usage_frequency)
+dim(station_list)
+
+```
+
+## Verifying Missing Values
+
+After handling missing values, we’ll check again to confirm that there are no remaining missing values in each dataset.
+
+```{r}
+# Checking for any remaining missing values in daily_rent_detail
+missing_values_daily_rent <- sapply(daily_rent_detail, function(x) sum(is.na(x)))
+missing_values_daily_rent
+
+# Checking for any remaining missing values in weather
+missing_values_weather <- sapply(weather, function(x) sum(is.na(x)))
+missing_values_weather
+
+# Checking for any remaining missing values in usage_frequency
+missing_values_usage_frequency <- sapply(usage_frequency, function(x) sum(is.na(x)))
+missing_values_usage_frequency
+
+# Checking for any remaining missing values in station_list
+missing_values_station_list <- sapply(station_list, function(x) sum(is.na(x)))
+missing_values_station_list
+
+
+```
+
+
+
+
+
+Exploratory Data Analysis (EDA)
+
+
+```{r, echo=FALSE}
+
+station_data <- daily_rent_detail %>%
+  group_by(start_station_name, start_lat, start_lng) %>%
+  summarize(Number_of_rides = n(), .groups = "drop") %>%
+  arrange(desc(Number_of_rides)) %>%
+  head(50)  # Selecting top 50 popular stations
+
+# Interactive map with Leaflet
+leaflet(station_data) %>%
+  addTiles() %>%
+  addCircleMarkers(
+    lng = ~start_lng, lat = ~start_lat,
+    radius = ~sqrt(Number_of_rides) * 0.1,  # Scaling circle size
+    color = "#1f78b4", fillOpacity = 0.6,
+    popup = ~paste("Station:", start_station_name, "<br>", "Total Rides:", Number_of_rides)
+  ) %>%
+  addLegend("bottomright", colors = "#1f78b4", labels = "Station Rides", opacity = 0.6)
+
+```
+
+
+
+
+
+
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+library(ggplot2)
+library(gganimate)
+library(scales)
+library(lubridate)
+library(dplyr)
+
+# Summarizing daily usage from daily_rent_detail
+
+daily_usage <- daily_rent_detail %>%
+  mutate(date = as.Date(started_at)) %>%  # Create `date` column if needed
+  group_by(date) %>%
+  summarize(Number_of_rides = n(), .groups = "drop")
+
+#Joining with weather data on the date
+daily_weather_usage <- daily_usage %>%
+  left_join(weather, by = c("date" = "datetime"))
+
+
+# Joining with weather data on the date
+daily_weather_usage <- daily_usage %>%
+  left_join(weather, by = c("date" = "datetime"))
+
+# Assumming daily_usage contains date and Number_of_rides columns
+
+advanced_animated_plot <- ggplot(daily_usage, aes(x = date, y = Number_of_rides)) +
+  geom_line(aes(color = month(date)), size = 1) +
+  geom_point(color = "#a6cee3", size = 0.5) +
+  geom_smooth(method = "loess", color = "darkred", se = FALSE, linetype = "dashed") +
+  geom_rect(
+    data = daily_usage %>% filter(wday(date) %in% c(1, 7)),
+    aes(xmin = date - 0.5, xmax = date + 0.5, ymin = -Inf, ymax = Inf),
+    fill = "yellow", alpha = 0.1, inherit.aes = FALSE
+  ) +
+  labs(
+    title = "Daily Bike Usage Over Time",
+    subtitle = "Animated trends with highlights for weekends and peak usage",
+    x = "Date",
+    y = "Total Rides",
+    caption = "Data Source: Capital Bikes"
+  ) +
+  theme_minimal(base_size = 14) +
+  scale_color_gradientn(colors = c("blue", "green", "orange", "red"), name = "Month") +
+  geom_text(aes(label = ifelse(Number_of_rides > 1000, "Peak Day", "")), vjust = -1, color = "darkred", fontface = "bold", size = 3) +
+  transition_reveal(date) +
+  ease_aes('sine-in-out') +
+  enter_grow() + exit_shrink()
+
+# Saving the animation as a GIF file
+anim_save("advanced_daily_bike_usage.gif", animation = advanced_animated_plot, renderer = gifski_renderer(), nframes = 100)
+
+
+```
+
+![Advanced Daily Bike Usage Animation](advanced_daily_bike_usage.gif)
+
+
+
+
+
+```{r,echo=FALSE}
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+
+# Defining `extreme_days` to highlight points with temperatures above or below a certain threshold
+extreme_days <- daily_weather_usage %>%
+  filter(temp > 30 | temp < 0)  
+
+ggplot(daily_weather_usage, aes(x = temp, y = Number_of_rides, color = Number_of_rides)) +
+    geom_point(size = 3, alpha = 0.7) +
+    geom_smooth(method = "loess", se = FALSE, color = "darkred", linetype = "dashed") +
+    scale_color_gradient(low = "skyblue", high = "darkblue") +
+    labs(
+        title = "Impact of Temperature on Bike Usage",
+        subtitle = "Higher temperatures correlate with increased bike usage, except on extreme days",
+        x = "Temperature (\u00B0C)",  # Using Unicode escape for degree symbol
+        y = "Number of Rides",
+        color = "Rides"
+    ) +
+    theme_minimal(base_size = 15) +
+    theme(
+        plot.title = element_text(face = "bold", size = 18),
+        plot.subtitle = element_text(size = 12),
+        axis.title = element_text(face = "bold"),
+        panel.grid.minor = element_blank()
+    ) +
+    geom_text_repel(data = extreme_days, aes(label = paste("Temp:", temp, "°C")),
+                    color = "darkred", size = 3.5, nudge_y = 1000, max.overlaps = 100)
+
+```
+
+
+
+
+```{r,echo=FALSE}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(viridis)
+
+# Creating a date column from the `started_at` column
+daily_rent_detail <- daily_rent_detail %>%
+  mutate(date = as.Date(started_at)) %>%
+  mutate(
+    month = factor(month(date, label = TRUE), levels = month.abb),
+    week = week(date),
+    year = year(date)
+  )
+
+# Summarizing weekly usage
+weekly_usage <- daily_rent_detail %>%
+  group_by(year, week) %>%
+  summarize(Number_of_rides = n(), .groups = "drop")
+
+# Creating the heatmap
+ggplot(weekly_usage, aes(x = week, y = factor(year), fill = Number_of_rides)) +
+  geom_tile(color = "white", size = 0.2) +
+  scale_fill_viridis(name = "Total Rides", option = "magma", direction = -1) +
+  labs(
+    title = "Weekly Bike Usage Trends Over the Years",
+    subtitle = "Weekly bike rental patterns by year",
+    x = "Week of Year",
+    y = "Year"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24, hjust = 0.5, color = "#4B0082"),
+    plot.subtitle = element_text(size = 16, hjust = 0.5, color = "#4B0082"),
+    axis.title.x = element_text(face = "bold", size = 14, color = "#333333"),
+    axis.title.y = element_text(face = "bold", size = 14, color = "#333333"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10, color = "#333333"),
+    axis.text.y = element_text(size = 10, color = "#333333"),
+    panel.grid = element_blank(),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", color = "#4B0082"),
+    legend.text = element_text(size = 10)
+  ) +
+  # Adding annotations for specific weeks
+  annotate("text", x = 1, y = factor(max(weekly_usage$year)), 
+           label = "Start of Year", color = "red", fontface = "italic", size = 4, hjust = 0.5) +
+  annotate("text", x = max(weekly_usage$week), y = factor(min(weekly_usage$year)), 
+           label = "End of Year", color = "blue", fontface = "italic", size = 4, hjust = 0.5)
+
+
+```
+
+
+
+```{r,echo=FALSE}
+library(dplyr)
+library(ggplot2)
+library(viridis)
+
+# Summarizing hourly usage
+hourly_usage <- daily_rent_detail %>%
+  mutate(hour = hour(started_at)) %>%
+  group_by(hour) %>%
+  summarize(Number_of_rides = n(), .groups = "drop")
+
+# Identifying peak usage hour for annotation
+peak_hour <- hourly_usage %>% filter(Number_of_rides == max(Number_of_rides))
+
+# Polar plot for hourly usage with enhancements
+ggplot(hourly_usage, aes(x = factor(hour), y = Number_of_rides, fill = Number_of_rides)) +
+  geom_bar(stat = "identity", color = "white", width = 1) +
+  coord_polar(start = 0) +
+  scale_fill_viridis(name = "Number of Rides ", option = "plasma", direction = -1) +
+  labs(
+    title = "24-Hour Bike Usage Patterns",
+    subtitle = "Hourly distribution of bike rentals reveals peak times",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", size = 22, hjust = 0.5, color = "#333333"),
+    plot.subtitle = element_text(size = 14, hjust = 0.5, color = "#666666"),
+    axis.text.x = element_text(size = 12, face = "bold", color = "#333333"),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", color = "#4B0082"),
+    legend.text = element_text(size = 10)
+  ) +
+  # Annotating peak hour
+  geom_text(data = peak_hour, aes(x = factor(hour), y = Number_of_rides + max(hourly_usage$Number_of_rides) * 0.05, 
+                                  label = paste("Peak Hour:", hour, "h")), 
+            color = "darkred", fontface = "bold", size = 4, angle = 90)
+
+```
+
+
+
+
+
+
+```{r,echo=FALSE}
+# Summarizin daily usage by user type
+daily_user_type_usage <- daily_rent_detail %>%
+  group_by(date, member_casual) %>%
+  summarize(Number_of_rides = n(), .groups = "drop") %>%
+  mutate(month_day = format(date, "%m-%d"))
+
+# Heatmap plot
+ggplot(daily_user_type_usage, aes(x = month_day, y = member_casual, fill = Number_of_rides)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(name = "Total Rides", option = "inferno", direction = -1) +
+  labs(
+    title = "Seasonal Trends by User Type",
+    subtitle = "Heatmap showing bike usage patterns for casual and member users across the year",
+    x = "Day of Year",
+    y = "User Type"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", size = 20, hjust = 0.5, color = "#4B0082"),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    axis.text.x = element_text(angle = 90, hjust = 1, size = 8, face = "bold"),
+    axis.text.y = element_text(size = 12, face = "bold"),
+    panel.grid = element_blank(),
+    legend.position = "right"
+  )
+
+```
+
+
+
+
+
+```{r,echo=FALSE}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+hourly_weather_matrix <- daily_rent_detail %>%
+  mutate(
+    date = as.Date(started_at),  # Extracting the date part
+    hour = hour(started_at)      # Extracting the hour
+  ) %>%
+  left_join(weather, by = c("date" = "datetime")) %>%  # Ensuring 'datetime' in 'weather' is also a date
+  mutate(temp_range = cut(temp, breaks = c(-Inf, 5, 15, 25, Inf), labels = c("≤5 C", "6-15 C", "16-25 C", "26 C+"))) %>%
+  group_by(hour, temp_range, precip) %>%
+  summarize(Number_of_rides = n(), .groups = "drop")
+
+# Plotting matrix with Celsius labels
+ggplot(hourly_weather_matrix, aes(x = hour, y = temp_range, size = Number_of_rides, color = precip)) +
+  geom_point(alpha = 0.8) +
+  scale_color_viridis_c(name = "Precipitation (mm)", option = "plasma", direction = -1) +
+  scale_size(range = c(2, 15), name = "Total Rides") +
+  labs(
+    title = "Hourly Bike Usage Under Various Weather Conditions",
+    subtitle = "Matrix shows bike usage by hour, Celsius temperature range, and precipitation",
+    x = "Hour of Day",
+    y = "Temperature Range"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", size = 20, hjust = 0.5, color = "#4B0082"),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    axis.text.x = element_text(size = 10, face = "bold"),
+    axis.text.y = element_text(size = 10, face = "bold"),
+    legend.position = "right",
+    panel.grid = element_blank()
+  )
+
+```
+
+```{r}
+
+
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# Extracting the date from 'started_at' to perform the join
+daily_rent_detail <- daily_rent_detail %>%
+  mutate(date = as.Date(started_at))  # Creating a date column from 'started_at'
+
+# Joining the datasets and filter out non-finite values
+data_combined <- daily_rent_detail %>%
+  left_join(weather, by = c("date" = "datetime")) %>%
+  filter(!is.na(temp) & is.finite(temp))  # Removing rows with non-finite temperature values
+
+# Now creating the plot
+ggplot(
+  data_combined, 
+  aes(x = temp, fill = member_casual, color = member_casual)
+) +
+  geom_density(alpha = 0.3, size = 0.8) +
+  geom_density(alpha = 0, size = 1.2, linetype = "dotted") +  # Adds emphasis with dotted lines
+  scale_fill_manual(name = "User Type", values = c("casual" = "#FF6347", "member" = "#4682B4")) +
+  scale_color_manual(name = "User Type", values = c("casual" = "#FF6347", "member" = "#4682B4")) +
+  geom_vline(xintercept = c(5, 15, 25), color = "grey40", linetype = "dashed", size = 0.8) +
+  annotate("text", x = 5, y = 0.025, label = "5 C", color = "grey40", size = 3, vjust = -0.5) +
+  annotate("text", x = 15, y = 0.025, label = "15 C", color = "grey40", size = 3, vjust = -0.5) +
+  annotate("text", x = 25, y = 0.025, label = "25 C", color = "grey40", size = 3, vjust = -0.5) +
+  labs(
+    title = "Impact of Temperature on Bike Usage by User Type",
+    subtitle = "Density of bike rides across temperature ranges for casual and member users",
+    x = "Temperature (°C)",
+    y = "Density",
+    fill = "User Type"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", size = 22, hjust = 0.5, color = "#333333"),
+    plot.subtitle = element_text(size = 14, hjust = 0.5, color = "#666666"),
+    axis.title.x = element_text(face = "bold", size = 15),
+    axis.title.y = element_text(face = "bold", size = 15),
+    axis.text = element_text(size = 12, color = "#333333"),
+    legend.position = "top",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 10),
+    panel.grid.major = element_line(color = "grey90"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "white")
+  ) +
+  scale_x_continuous(breaks = seq(-10, 40, 5), limits = c(-10, 40)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05)))  
+
+
+```
+
+
+```{r,echo=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(scales)
+
+# Calculating percentage for each user type within day type
+daily_weekday_usage <- daily_rent_detail %>%
+  mutate(day_type = ifelse(wday(date) %in% c(1, 7), "Weekend", "Weekday")) %>%
+  group_by(day_type, member_casual) %>%
+  summarize(Number_of_rides = n(), .groups = "drop") %>%
+  group_by(day_type) %>%
+  mutate(percentage = Number_of_rides / sum(Number_of_rides) * 100)
+
+# Enhanced stacked bar plot with y-axis labels in thousands
+ggplot(daily_weekday_usage, aes(x = day_type, y = Number_of_rides, fill = member_casual, label = paste0(round(percentage, 1), "%"))) +
+  geom_bar(stat = "identity", position = position_stack(reverse = TRUE), color = "white", width = 0.7) +
+  geom_text(position = position_stack(vjust = 0.5, reverse = TRUE), size = 5, color = "white") +
+  scale_fill_manual(name = "User Type", values = c("casual" = "#FF6347", "member" = "#4682B4")) +
+  labs(
+    title = "User Behavior on Weekdays vs. Weekends",
+    x = "Day Type",
+    y = "Total Rides"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24, hjust = 0.5, color = "#4B0082"),
+    plot.subtitle = element_text(size = 14, hjust = 0.5, color = "#4B0082"),
+    axis.title.x = element_text(face = "bold", size = 16),
+    axis.title.y = element_text(face = "bold", size = 16),
+    axis.text = element_text(size = 14, color = "#333333"),
+    legend.position = "top",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12),
+    panel.grid.major = element_line(color = "grey80", linewidth = 0.5),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "#F7F7F7", color = NA),
+    panel.background = element_rect(fill = "#F7F7F7")
+  ) +
+  scale_y_continuous(labels = label_number(scale = 0.001, suffix = "k"), expand = expansion(mult = c(0, 0.05)))
+
+  
+  
+
+```
+
+
+```{r,echo=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(viridis)
+
+# Aggregating daily usage by precipitation level
+daily_precip_usage <- daily_rent_detail %>%
+  left_join(weather, by = c("date" = "datetime")) %>%
+  group_by(date, precip) %>%
+  summarize(Number_of_rides = n(), .groups = "drop") %>%
+  mutate(precip_level = cut(precip, breaks = c(-Inf, 0.5, 2, 5, Inf), 
+                            labels = c("No Rain", "Light Rain", "Moderate Rain", "Heavy Rain"))) %>%
+  filter(!is.na(precip_level))  # Removing rows where precip_level is NA
+
+
+ggplot(daily_precip_usage, aes(x = precip_level, y = Number_of_rides, fill = precip_level)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.7, color = "grey40", linewidth = 0.8) +  
+  geom_jitter(aes(color = precip_level), width = 0.2, size = 2, alpha = 0.5) +  # Adds jittered points for individual data
+  geom_point(data = daily_precip_usage %>% filter(Number_of_rides > quantile(Number_of_rides, 0.95)), 
+             aes(x = precip_level, y = Number_of_rides), color = "darkred", size = 4, shape = 17, alpha = 0.7) +  # Highlighting outliers
+  scale_fill_viridis_d(name = "Precipitation Level", option = "plasma") +
+  scale_color_viridis_d(guide = "none") +
+  labs(
+    title = "Impact of Precipitation on Bike Usage",
+    subtitle = "Detailed distribution of bike rides at various precipitation levels",
+    x = "Precipitation Level",
+    y = "Daily Rides"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(face = "bold", size = 24, hjust = 0.5, color = "#333333"),
+    plot.subtitle = element_text(size = 14, hjust = 0.5, color = "#555555"),
+    axis.title.x = element_text(face = "bold", size = 18),
+    axis.title.y = element_text(face = "bold", size = 18),
+    axis.text = element_text(size = 14, color = "#333333"),
+    panel.grid.major = element_line(color = "grey85", linewidth = 0.5),  
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "#F9F9F9", color = NA),
+    panel.background = element_rect(fill = "#F9F9F9")
+  ) +
+  scale_y_continuous(labels = scales::label_number(scale = 0.001, suffix = "k"), expand = expansion(mult = c(0, 0.05)))  # Y-axis in thousands
+
+
+
+```
+
+
+```{r}
+
+library(dplyr)
+
+# Add hour column to summarize by hour
+daily_rent_detail <- daily_rent_detail %>%
+  mutate(hour = lubridate::hour(started_at), date = as.Date(started_at))
+
+# Summarize the total rides for each station by hour
+rides_summary <- daily_rent_detail %>%
+  group_by(start_station_id, date, hour) %>%
+  summarize(total_rides = n(), .groups = "drop")
+
+
+# Merge summarized ride data with weather data
+rides_weather <- rides_summary %>%
+  left_join(weather, by = c("date" = "datetime"))
+
+# Include the date column in the modeling dataset
+rides_weather_model <- rides_weather %>%
+  select(start_station_id, date, hour, temp, feelslike, humidity, precip, windspeed, total_rides)
+
+# View the updated dataset
+
+rides <- rides_weather_model %>%
+  mutate(day_of_week = weekdays(date),
+         week = lubridate::week(date),
+         month = lubridate::month(date))
+
+rides_clean <- rides[complete.cases(rides), ]
+
+dim(rides_clean)
+sum(is.na(rides_clean))
+
+
+```
+
