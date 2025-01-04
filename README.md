@@ -1,0 +1,4 @@
+
+This project analyzes over 16 million ride records from Capital Bikes to uncover key patterns in bike-sharing behavior and predict rental demand. By integrating weather, temporal, and station-specific data, we developed machine learning models (Linear Regression, Random Forest, and XGBoost) to forecast usage trends with high accuracy. The Random Forest model achieved the best performance with an RMSE of 2.4317, providing actionable insights to optimize fleet management and improve weather-responsive operations.
+
+Key recommendations include dynamic fleet allocation during peak hours, targeted marketing strategies for weekends and holidays, and the implementation of weather-based adjustments to pricing and services. This repository contains the project code, analysis workflow, and a comprehensive report detailing the findings, methodology, and recommendations.
