@@ -95,10 +95,3 @@ print(paste("XGBoost RMSE:", xgb_rmse))
 saveRDS(rf_model, "rf_model.rds")
 saveRDS(xgb_model, "xgb_model.rds")
 
-
-#Conclusion
-
-#The Random Forest model, trained with 500 trees and feature importance analysis, achieved a root mean squared error (RMSE) of 2.5861. While this model demonstrated a solid baseline performance and interpretability, further optimization was explored using XGBoost, a more advanced gradient-boosting algorithm. Through systematic hyperparameter tuning—focusing on maximum depth, minimum child weight, and learning rate (eta)—the XGBoost model was fine-tuned to achieve a significantly lower RMSE of 2.5181. This performance improvement highlights the effectiveness of gradient boosting in capturing the non-linear relationships and interactions within the data, particularly when optimized for a domain-specific context like bike rental forecasting.
-
-#The final XGBoost model, with optimal parameters of max depth = 3, min child weight = 1, and eta = 0.05, stands out as the best-performing model. Its ability to integrate complex interactions among weather conditions, time-based factors, and seasonal trends makes it a powerful tool for predictive modeling. The model’s performance underscores the importance of tailored hyperparameter tuning and the value of leveraging advanced machine learning techniques to enhance predictive accuracy.
-
